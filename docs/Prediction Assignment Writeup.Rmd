@@ -1,0 +1,134 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Carlos Henrique"
+date: "11/11/2020"
+output: html_document
+---
+Executive summary
+-----------------
+
+First, it is made an exploratory data analysis to get to know better the data we're dealing with. With regard to the cross validation, the provided training dataset, after having been properly treated (cleaned), was under subsampling, randomly and without replacement. The result was two subsamples, training_training (75% of the original data) and training_testing (25% of it). Thus, the two models were fitted within the training_training and tested under training_testing. As for the expected out-of-sample error, it is the error rate one gets on a new data set, also called generalization error. In mathematical terms, it is given by 1 - accuracy in the cross validation dataset. The expected out-of-sample error was about 0.5% for the Random Forest model.
+Afterwards, it is tested two models for prediction, Decision Tree and Random Forest. We found that Random Forest model provided the biggest accuracy, which is why was the chosen for the final model.
+
+Description of the data
+-----------------------
+The data was extracted from a research on the measurement of not only how much people do activities but also how well they do it. In order to collect these data (i.e. Weight Lifting Exercises Dataset) the researchers made an experiment in which they asked six male participants aged between 20-28 years old to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in 5 different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). In short, Class A corresponds to the specified execution of the exercise, whereas the other remaining four to the common mistakes (thus proxies to measure the quality of the exercise).
+
+The aim of this project is to predict the manner in which a set of six male participants did the required exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+
+Loading packages and the dataset
+--------------------------------
+
+
+```{r}
+set.seed(1234)
+
+library(randomForest); library(caret); library(rpart); library(ggplot2); library(lattice); library(rpart.plot); library(rattle)
+
+training <- read.csv("pml-training.csv", na.strings = c("NA", "#DIV/0!", ""))
+testing <- read.csv("pml-testing.csv", na.strings = c("NA", "#DIV/0!", ""))
+
+```
+
+Exploratory data analysis
+-------------------------
+As there is a lot of information provided by the data set, the exploratory analysis is only made for the training data for an example.
+
+```{r}
+dim(training); summary(training); str(training)
+```
+
+As we can see above, the data is made up of a lot of variables (160) and 19,622 observations for the training dataset and 20 for the testing one. The variable of interest, the output variable, is going to be "classe".
+
+Taking a look at the structure of the data, one can see the huge amount of not available values, thus being necessary to exclude the columns containing only them.
+
+```{r}
+training <- training[, colSums(is.na(training)) == 0]
+testing <- testing[, colSums(is.na(testing)) == 0]
+```
+
+So now there are only 60 variables left for each dataset (that is, minus 100 variables).
+
+```{r}
+str(training)
+```
+
+Taking a look at the structure of the data above, one can see that there are plenty of useless variables for the project (specific information about the elements involved in the experiment, but nothing to do with the performance of the participants, which is specifically what we want). In this sense, yet other variables may be excluded, such as those of the first seven columns.
+
+```{r}
+training <- training[, -c(1:7)]
+testing <- testing[, -c(1:7)]
+```
+
+Having appropriately cleaned the data, it's time to partition the training dataset into 75% of training and the 25% left into testing, which is given as follows:
+
+```{r}
+inTrain <- createDataPartition(y = training$classe, p = .75, list = F)
+training_training <- training[inTrain, ]
+training_testing <- training[-inTrain, ]
+```
+
+As one can see on the structure of the data above, the aforementioned outcome variable, "classe", consists of 5 levels (A, B, C, D, E). To get to know better the frequency of each classe, it's desirable to take a look at a plot. 
+
+```{r}
+ggplot(data = training_training) + geom_bar(mapping = aes(x = classe, fill = classe), show.legend = F)
+```
+
+This plot allows us to see that except for class A (according to specification), the common mistakes (the other classes) have approximately the same frequency.
+
+Decision tree
+-------------
+In order to assess the machine learning algorithm for prediction, decision tree method is used. This model was chosen because some of its pros are the ease of interpreting as well as the better performance in nonlinear settings.
+
+```{r}
+model_tree <- rpart(classe ~ ., data = training_training, method = "class")
+prediction_tree <- predict(model_tree, training_testing, type = "class")
+
+```
+
+For the sake of visualization, the resulting plot is as follows:
+
+```{r}
+rpart.plot(model_tree, main = "Decision tree", extra = 102, under = T, faclen = 0, cex = .55)
+```
+
+Though the plot has too much of information, we still can make use of the confusion matrix, so as to visualize the performance of the algorithm within the testing dataset.
+
+```{r}
+confusionMatrix(prediction_tree, training_testing$classe)
+```
+ 
+So, all of biggest values in each column of the matrix coincide with the actual-prediction values.
+
+Random Forest
+-------------
+In order to assess the machine learning algorithm for prediction, random forest method is used. This model was chosen because one of its pros is specifically the accuracy, which will be compared with that of the decision tree model.
+
+That said, the modeling and its prediction are as follows:
+```{r}
+model_rf <- randomForest(classe ~ ., data = training_training, method = "class")
+prediction_rf <- predict(model_rf, training_testing, type = "class")
+```
+
+Just as we did before, the confusion matrix is then provided.
+```{r}
+confusionMatrix(prediction_rf, training_testing$classe)
+```
+
+So, one can see that all of the biggest values in each column coincide with the actual-prediction values of the dataset. Besides that, these values are much better than those of the first model. 
+
+Which prediction model to choose?
+---------------------------------
+
+As briefly outlined above, the confusion matrix indicates that the second model (Random Forest) overtly predicts better than the first one. Indeed, one can see that for the first model (Decision Tree) the accuracy is about 0.73 and the 95% confidence interval is (0.7269, 0.7516) whereas the second one is impressively 0.99 and its 95% confidence interval is (0.9932, 0.9972). In this sense, the Random Forest model is indisputably the chosen one. Also, the expected out-of-sample error is about 0.5%.
+
+Testing the algorithm with the provided testing dataset
+-------------------------------------------------------
+ 
+Once selected the proper model, we are going to make use of the Random Forest model to make predictions out of the testing dataset:
+```{r}
+finalprediction <- predict(model_rf, testing, type = "class")
+finalprediction
+```
+
